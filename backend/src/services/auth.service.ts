@@ -4,7 +4,9 @@ import { randomUUID } from "node:crypto";
 import { memoryRepository } from "../repositories/memory.repository";
 import { Role, User } from "../types/domain";
 
-const JWT_SECRET = process.env.JWT_SECRET || "resolve-ai-development-secret";
+function jwtSecret() {
+    return process.env.JWT_SECRET || "resolve-ai-development-secret";
+}
 
 export class AuthService {
     async register(name: string, email: string, password: string, role: Role = "SOLICITANTE") {
@@ -27,7 +29,7 @@ export class AuthService {
 
     private session(user: User) {
         const { passwordHash: _passwordHash, ...publicUser } = user;
-        return { user: publicUser, token: jwt.sign({ sub: user.id, role: user.role }, JWT_SECRET, { expiresIn: "8h" }) };
+        return { user: publicUser, token: jwt.sign({ sub: user.id, role: user.role }, jwtSecret(), { expiresIn: "8h" }) };
     }
 }
 

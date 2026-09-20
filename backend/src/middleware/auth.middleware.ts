@@ -7,7 +7,9 @@ export interface AuthRequest extends Request {
     user?: AuthUser;
 }
 
-const JWT_SECRET = process.env.JWT_SECRET || "resolve-ai-development-secret";
+function jwtSecret() {
+    return process.env.JWT_SECRET || "resolve-ai-development-secret";
+}
 
 export function requireAuth(req: AuthRequest, res: Response, next: NextFunction) {
     const authorization = req.headers.authorization;
@@ -16,7 +18,7 @@ export function requireAuth(req: AuthRequest, res: Response, next: NextFunction)
     }
 
     try {
-        const payload = jwt.verify(authorization.slice(7), JWT_SECRET) as jwt.JwtPayload;
+        const payload = jwt.verify(authorization.slice(7), jwtSecret()) as jwt.JwtPayload;
         const user = memoryRepository.findUserById(String(payload.sub));
         if (!user) return res.status(401).json({ message: "Usuário não encontrado" });
         req.user = { id: user.id, name: user.name, email: user.email, role: user.role };
