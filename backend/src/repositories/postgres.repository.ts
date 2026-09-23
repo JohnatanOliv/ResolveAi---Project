@@ -1,6 +1,9 @@
 import { Pool, PoolClient } from "pg";
 import { randomUUID } from "node:crypto";
+import dotenv from "dotenv";
 import { AuthUser, Comment, Occurrence, Priority, Role, Status, StatusHistory, User } from "../types/domain";
+
+dotenv.config();
 
 const pool = new Pool({
     connectionString: process.env.DATABASE_URL,
