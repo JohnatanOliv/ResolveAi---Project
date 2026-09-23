@@ -1,7 +1,7 @@
 import bcrypt from "bcrypt";
 import jwt from "jsonwebtoken";
 import { randomUUID } from "node:crypto";
-import { memoryRepository } from "../repositories/memory.repository";
+import { postgresRepository } from "../repositories/postgres.repository";
 import { Role, User } from "../types/domain";
 
 function jwtSecret() {
@@ -11,18 +11,18 @@ function jwtSecret() {
 export class AuthService {
     async register(name: string, email: string, password: string, role: Role = "SOLICITANTE") {
         const normalizedEmail = String(email).toLowerCase();
-        if (memoryRepository.findUserByEmail(normalizedEmail)) throw new Error("E-mail já cadastrado");
+        if (await postgresRepository.findUserByEmail(normalizedEmail)) throw new Error("E-mail já cadastrado");
         const user: User = {
             id: randomUUID(), name, email: normalizedEmail,
             passwordHash: await bcrypt.hash(password, 10), role,
             createdAt: new Date().toISOString(),
         };
-        memoryRepository.saveUser(user);
+        await postgresRepository.saveUser(user);
         return this.session(user);
     }
 
     async login(email: string, password: string) {
-        const user = memoryRepository.findUserByEmail(String(email).toLowerCase());
+        const user = await postgresRepository.findUserByEmail(String(email).toLowerCase());
         if (!user || !(await bcrypt.compare(password || "", user.passwordHash))) throw new Error("E-mail ou senha inválidos");
         return this.session(user);
     }
