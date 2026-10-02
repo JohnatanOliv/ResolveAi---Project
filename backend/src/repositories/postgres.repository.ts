@@ -1,7 +1,7 @@
 import { Pool, PoolClient } from "pg";
 import { randomUUID } from "node:crypto";
 import dotenv from "dotenv";
-import { AuthUser, Comment, Occurrence, Priority, Role, Status, StatusHistory, User } from "../types/domain";
+import { AuthUser, Comment, ManagerAccessRequest, Occurrence, Priority, Role, Status, StatusHistory, User } from "../types/domain";
 
 dotenv.config();
 
@@ -35,6 +35,21 @@ function mapHistory(row: Record<string, any>): StatusHistory {
         note: row.note || undefined,
         changedBy: row.changed_by,
         changedAt: iso(row.changed_at),
+    };
+}
+
+function mapManagerAccessRequest(row: Record<string, any>): ManagerAccessRequest {
+    return {
+        id: row.id,
+        requesterId: row.requester_id,
+        requesterName: row.requester_name,
+        requesterEmail: row.requester_email,
+        reason: row.reason,
+        status: row.status,
+        createdAt: iso(row.created_at),
+        decidedAt: row.decided_at ? iso(row.decided_at) : undefined,
+        decidedBy: row.decided_by || undefined,
+        decisionNote: row.decision_note || undefined,
     };
 }
 
@@ -79,6 +94,78 @@ export class PostgresRepository {
         return mapUser(result.rows[0]);
     }
 
+    async getManagerAccessRequest(userId: string) {
+        const result = await pool.query(
+            `SELECT r.*, u.name AS requester_name, u.email AS requester_email
+             FROM manager_access_requests r
+             INNER JOIN users u ON u.id = r.requester_id
+             WHERE r.requester_id = $1
+             ORDER BY r.created_at DESC LIMIT 1`,
+            [userId],
+        );
+        return result.rows[0] ? mapManagerAccessRequest(result.rows[0]) : undefined;
+    }
+
+    async createManagerAccessRequest(userId: string, reason: string) {
+        const result = await pool.query(
+            `INSERT INTO manager_access_requests (id, requester_id, reason)
+             VALUES ($1, $2, $3)
+             RETURNING *`,
+            [randomUUID(), userId, reason],
+        );
+        const request = await this.getManagerAccessRequest(userId);
+        return request || mapManagerAccessRequest({ ...result.rows[0], requester_name: "", requester_email: "" });
+    }
+
+    async listManagerAccessRequests() {
+        const result = await pool.query(
+            `SELECT r.*, u.name AS requester_name, u.email AS requester_email
+             FROM manager_access_requests r
+             INNER JOIN users u ON u.id = r.requester_id
+             ORDER BY CASE WHEN r.status = 'PENDENTE' THEN 0 ELSE 1 END, r.created_at DESC`,
+        );
+        return result.rows.map(mapManagerAccessRequest);
+    }
+
+    async decideManagerAccessRequest(requestId: string, adminId: string, decision: "APROVADO" | "RECUSADO", decisionNote?: string) {
+        const client = await pool.connect();
+        try {
+            await client.query("BEGIN");
+            const selected = await client.query("SELECT * FROM manager_access_requests WHERE id = $1 FOR UPDATE", [requestId]);
+            const request = selected.rows[0];
+            if (!request) {
+                await client.query("ROLLBACK");
+                return undefined;
+            }
+            if (request.status !== "PENDENTE") throw new Error("Este pedido já foi decidido");
+            if (decision === "APROVADO") {
+                const promoted = await client.query(
+                    "UPDATE users SET role = 'GESTOR', updated_at = NOW() WHERE id = $1 AND role = 'SOLICITANTE'",
+                    [request.requester_id],
+                );
+                if (promoted.rowCount !== 1) throw new Error("A conta não está mais elegível para acesso de gestor");
+            }
+            await client.query(
+                `UPDATE manager_access_requests
+                 SET status = $2, decided_at = NOW(), decided_by = $3, decision_note = $4
+                 WHERE id = $1`,
+                [requestId, decision, adminId, decisionNote || null],
+            );
+            await client.query("COMMIT");
+            const updated = await client.query(
+                `SELECT r.*, u.name AS requester_name, u.email AS requester_email
+                 FROM manager_access_requests r INNER JOIN users u ON u.id = r.requester_id WHERE r.id = $1`,
+                [requestId],
+            );
+            return mapManagerAccessRequest(updated.rows[0]);
+        } catch (error) {
+            await client.query("ROLLBACK");
+            throw error;
+        } finally {
+            client.release();
+        }
+    }
+
     private async hydrate(id: string, client: Pool | PoolClient = pool) {
         const occurrenceResult = await client.query(
             `SELECT o.*, r.rating
@@ -101,7 +188,7 @@ export class PostgresRepository {
     async listOccurrences(user: AuthUser, filters: { category?: unknown; status?: unknown; priority?: unknown }) {
         const values: unknown[] = [];
         const conditions = [];
-        if (user.role !== "GESTOR") {
+        if (user.role !== "GESTOR" && user.role !== "ADMIN") {
             values.push(user.id);
             conditions.push(`o.requester_id = $${values.length}`);
         }

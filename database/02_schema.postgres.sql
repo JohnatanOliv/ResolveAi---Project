@@ -6,7 +6,7 @@ CREATE TABLE IF NOT EXISTS users
     name VARCHAR(120) NOT NULL,
     email VARCHAR(254) NOT NULL UNIQUE,
     password_hash VARCHAR(255) NOT NULL,
-    role VARCHAR(20) NOT NULL CHECK (role IN ('SOLICITANTE', 'GESTOR')),
+    role VARCHAR(20) NOT NULL CHECK (role IN ('SOLICITANTE', 'GESTOR', 'ADMIN')),
     created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
     updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
 );
@@ -65,6 +65,22 @@ CREATE TABLE IF NOT EXISTS occurrence_ratings
     rating SMALLINT NOT NULL CHECK (rating BETWEEN 1 AND 5),
     created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
 );
+
+CREATE TABLE IF NOT EXISTS manager_access_requests
+(
+    id UUID PRIMARY KEY,
+    requester_id UUID NOT NULL REFERENCES users (id),
+    reason VARCHAR(1000) NOT NULL,
+    status VARCHAR(20) NOT NULL DEFAULT 'PENDENTE' CHECK (status IN ('PENDENTE', 'APROVADO', 'RECUSADO')),
+    created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+    decided_at TIMESTAMPTZ,
+    decided_by UUID REFERENCES users (id),
+    decision_note VARCHAR(1000)
+);
+
+CREATE UNIQUE INDEX IF NOT EXISTS ux_manager_access_requests_pending_requester
+    ON manager_access_requests (requester_id)
+    WHERE status = 'PENDENTE';
 
 CREATE OR REPLACE VIEW occurrence_summary AS
 SELECT

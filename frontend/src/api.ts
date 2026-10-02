@@ -1,4 +1,4 @@
-import { Dashboard, Occurrence, Priority, Status, User } from "./types";
+import { Dashboard, ManagerAccessRequest, Occurrence, Priority, Status, User } from "./types";
 
 const API_URL = import.meta.env.VITE_API_URL || "http://localhost:3333/api";
 const tokenKey = "resolve-ai-token";
@@ -16,7 +16,7 @@ async function request<T>(path: string, options: RequestInit = {}): Promise<T> {
 
 export const api = {
   tokenKey,
-  register: (data: { name: string; email: string; password: string; role: string }) => request<{ user: User; token: string }>("/auth/register", { method: "POST", body: JSON.stringify(data) }),
+  register: (data: { name: string; email: string; password: string }) => request<{ user: User; token: string }>("/auth/register", { method: "POST", body: JSON.stringify(data) }),
   login: (data: { email: string; password: string }) => request<{ user: User; token: string }>("/auth/login", { method: "POST", body: JSON.stringify(data) }),
   occurrences: (filters = "") => request<{ data: Occurrence[]; total: number }>(`/occurrences${filters}`),
   createOccurrence: (data: Partial<Occurrence>) => request<Occurrence>("/occurrences", { method: "POST", body: JSON.stringify(data) }),
@@ -24,4 +24,8 @@ export const api = {
   comment: (id: string, text: string) => request(`/occurrences/${id}/comments`, { method: "POST", body: JSON.stringify({ text }) }),
   rate: (id: string, rating: number) => request(`/occurrences/${id}/rating`, { method: "POST", body: JSON.stringify({ rating }) }),
   dashboard: () => request<Dashboard>("/dashboard"),
+  myManagerAccessRequest: () => request<{ data: ManagerAccessRequest | null }>("/manager-access-request"),
+  requestManagerAccess: (reason: string) => request<{ data: ManagerAccessRequest }>("/manager-access-request", { method: "POST", body: JSON.stringify({ reason }) }),
+  managerAccessRequests: () => request<{ data: ManagerAccessRequest[] }>("/admin/manager-access-requests"),
+  decideManagerAccessRequest: (id: string, decision: "APROVADO" | "RECUSADO", decisionNote?: string) => request<{ data: ManagerAccessRequest }>(`/admin/manager-access-requests/${id}`, { method: "PATCH", body: JSON.stringify({ decision, decisionNote }) }),
 };

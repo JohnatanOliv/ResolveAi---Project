@@ -1,4 +1,4 @@
-export type Role = "SOLICITANTE" | "GESTOR";
+export type Role = "SOLICITANTE" | "GESTOR" | "ADMIN";
 export type Status = "ABERTA" | "EM_ANALISE" | "EM_ATENDIMENTO" | "RESOLVIDA" | "CANCELADA";
 export type Priority = "BAIXA" | "MEDIA" | "ALTA" | "URGENTE";
 
@@ -16,6 +16,19 @@ export interface AuthUser {
     name: string;
     email: string;
     role: Role;
+}
+
+export interface ManagerAccessRequest {
+    id: string;
+    requesterId: string;
+    requesterName: string;
+    requesterEmail: string;
+    reason: string;
+    status: "PENDENTE" | "APROVADO" | "RECUSADO";
+    createdAt: string;
+    decidedAt?: string;
+    decidedBy?: string;
+    decisionNote?: string;
 }
 
 export interface StatusHistory {

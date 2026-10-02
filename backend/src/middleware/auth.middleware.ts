@@ -29,6 +29,11 @@ export async function requireAuth(req: AuthRequest, res: Response, next: NextFun
 }
 
 export function requireManager(req: AuthRequest, res: Response, next: NextFunction) {
-    if (req.user?.role !== "GESTOR") return res.status(403).json({ message: "Acesso restrito a gestores" });
+    if (req.user?.role !== "GESTOR" && req.user?.role !== "ADMIN") return res.status(403).json({ message: "Acesso restrito a gestores" });
+    next();
+}
+
+export function requireAdmin(req: AuthRequest, res: Response, next: NextFunction) {
+    if (req.user?.role !== "ADMIN") return res.status(403).json({ message: "Acesso restrito ao administrador" });
     next();
 }

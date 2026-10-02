@@ -1,13 +1,19 @@
 import { Router } from "express";
 import * as authController from "../controllers/auth.controller";
+import * as managerAccessController from "../controllers/manager-access.controller";
 import * as occurrenceController from "../controllers/occurrence.controller";
-import { requireAuth, requireManager } from "../middleware/auth.middleware";
+import { requireAdmin, requireAuth, requireManager } from "../middleware/auth.middleware";
 
 export const apiRouter = Router();
 
 apiRouter.post("/auth/register", authController.register);
 apiRouter.post("/auth/login", authController.login);
 apiRouter.get("/me", requireAuth, (req, res) => res.json({ user: (req as import("../middleware/auth.middleware").AuthRequest).user }));
+
+apiRouter.get("/manager-access-request", requireAuth, managerAccessController.getOwnRequest);
+apiRouter.post("/manager-access-request", requireAuth, managerAccessController.request);
+apiRouter.get("/admin/manager-access-requests", requireAuth, requireAdmin, managerAccessController.list);
+apiRouter.patch("/admin/manager-access-requests/:id", requireAuth, requireAdmin, managerAccessController.decide);
 
 apiRouter.get("/occurrences", requireAuth, occurrenceController.list);
 apiRouter.post("/occurrences", requireAuth, occurrenceController.create);

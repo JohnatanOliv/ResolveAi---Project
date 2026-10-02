@@ -9,7 +9,7 @@ async function getOccurrence(req: AuthRequest, res: Response) {
     return occurrence;
 }
 
-function canAccess(req: AuthRequest, requesterId: string) { return req.user?.role === "GESTOR" || req.user?.id === requesterId; }
+function canAccess(req: AuthRequest, requesterId: string) { return req.user?.role === "GESTOR" || req.user?.role === "ADMIN" || req.user?.id === requesterId; }
 
 export async function list(req: AuthRequest, res: Response) { const data = await occurrenceService.list(req.user!, req.query); res.json({ data, total: data.length }); }
 
