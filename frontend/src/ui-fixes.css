@@ -4,6 +4,177 @@ select {
   caret-color: #111;
 }
 
+:root {
+  color: #183238;
+  background: #f3f7f5;
+  --blue: #176b64;
+  --deep: #123f48;
+  --sky: #e4f2ee;
+  --line: #d7e5e1;
+  --muted: #637c78;
+  --ink: #183238;
+}
+
+body,
+.app-shell {
+  background: #f3f7f5;
+  color: #183238;
+}
+
+.sidebar,
+.topbar,
+.dash-card,
+.table-wrap {
+  border-color: #d7e5e1;
+}
+
+.brand {
+  color: #123f48;
+}
+
+.brand > span > span {
+  color: #e27655;
+}
+
+.brand-mark {
+  background: #176b64;
+  box-shadow: 0 6px 16px #176b6430;
+}
+
+.nav-item:hover {
+  background: #f0f6f3;
+  color: #145c56;
+}
+
+.nav-item.active {
+  background: #e4f2ee;
+  color: #145c56;
+  box-shadow: inset 3px 0 #e27655;
+}
+
+.primary-button {
+  background: #176b64;
+  box-shadow: 0 6px 14px #176b6426;
+}
+
+.primary-button:hover {
+  background: #10564f;
+}
+
+.secondary-button {
+  background: #eaf1ee;
+  color: #385c58;
+}
+
+.text-button {
+  color: #176b64;
+}
+
+.auth-decoration {
+  background: linear-gradient(135deg, #123f48, #176b64);
+}
+
+.auth-copy h1 em {
+  color: #f1a17e;
+}
+
+.auth-decoration:after {
+  border-color: #8dd1bf55;
+  box-shadow: 0 0 0 35px #8dd1bf10, 0 0 0 75px #8dd1bf08;
+}
+
+.section-kicker,
+.workspace-label {
+  color: #718b85;
+}
+
+.tip {
+  background: #eaf3ef;
+  color: #176b64;
+}
+
+.tip small {
+  color: #647f79;
+}
+
+.status-pill.aberta {
+  color: #225ea8;
+  background: #e8f1ff;
+}
+
+.status-pill.em_analise {
+  color: #8a5b00;
+  background: #fff3d6;
+}
+
+.status-pill.em_atendimento {
+  color: #6941a5;
+  background: #f1eafb;
+}
+
+.status-pill.resolvida {
+  color: #187347;
+  background: #e4f5eb;
+}
+
+.status-pill.cancelada {
+  color: #a93445;
+  background: #ffeaed;
+}
+
+.priority.baixa {
+  color: #367464;
+}
+
+.priority.media {
+  color: #946200;
+}
+
+.priority.alta {
+  color: #b45328;
+}
+
+.priority.urgente {
+  color: #b42336;
+}
+
+.metric-icon.blue {
+  background: #e3f1f5;
+  color: #176b82;
+}
+
+.metric-icon.green {
+  background: #e4f5eb;
+  color: #187347;
+}
+
+.metric-icon.amber {
+  background: #fff3d6;
+  color: #946200;
+}
+
+.metric-spark {
+  border-color: #d8ebe5;
+}
+
+.summary-score,
+.summary-total strong {
+  color: #123f48;
+}
+
+.summary-caption,
+.summary-total {
+  color: #637c78;
+}
+
+input:focus-visible,
+textarea:focus-visible,
+select:focus-visible,
+button:focus-visible {
+  outline: 2px solid #176b64;
+  outline-offset: 2px;
+}
+
 .dashboard-grid {
   grid-template-columns: repeat(2, minmax(0, 1fr));
 }
