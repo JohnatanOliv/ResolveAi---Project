@@ -219,6 +219,11 @@ html[data-theme="dark"] .comment-input textarea {
   border-color: #405756;
 }
 
+html[data-theme="dark"] input:not([type="file"]),
+html[data-theme="dark"] textarea {
+  caret-color: #f3fffb;
+}
+
 html[data-theme="dark"] input::placeholder,
 html[data-theme="dark"] textarea::placeholder {
   color: #819994;

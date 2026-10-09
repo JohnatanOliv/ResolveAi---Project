@@ -1,15 +1,17 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
-const { createCompany, createLocation, listCompanies, listLocations, managerOwnsCompany } = vi.hoisted(() => ({
+const { createCompany, createLocation, createOperator, listCompanies, listLocations, listOperators, managerOwnsCompany } = vi.hoisted(() => ({
     createCompany: vi.fn(),
     createLocation: vi.fn(),
+    createOperator: vi.fn(),
     listCompanies: vi.fn(),
     listLocations: vi.fn(),
+    listOperators: vi.fn(),
     managerOwnsCompany: vi.fn(),
 }));
 
 vi.mock("../src/repositories/postgres.repository", () => ({
-    postgresRepository: { createCompany, createLocation, listCompanies, listLocations, managerOwnsCompany },
+    postgresRepository: { createCompany, createLocation, createOperator, listCompanies, listLocations, listOperators, managerOwnsCompany },
 }));
 
 import { CompanyService } from "../src/services/company.service";
@@ -56,5 +58,22 @@ describe("company and location service", () => {
             .resolves.toMatchObject({ name: "Unidade Centro" });
         expect(managerOwnsCompany).not.toHaveBeenCalled();
         expect(createLocation).toHaveBeenCalledWith("company-2", "Unidade Centro", "Rua 1");
+    });
+
+    it("creates an operator for a company managed by the current manager", async () => {
+        managerOwnsCompany.mockResolvedValue(true);
+        createOperator.mockResolvedValue({ id: "operator-1", name: "Ana Silva", phone: "11999990000" });
+
+        await expect(service.addOperator(manager, "company-1", " Ana Silva ", " 11999990000 "))
+            .resolves.toMatchObject({ name: "Ana Silva", phone: "11999990000" });
+        expect(createOperator).toHaveBeenCalledWith("company-1", "Ana Silva", "11999990000");
+    });
+
+    it("does not let a manager add an operator to another manager's company", async () => {
+        managerOwnsCompany.mockResolvedValue(false);
+
+        await expect(service.addOperator(manager, "company-2", "Ana Silva", "11999990000"))
+            .rejects.toThrow("Você não administra esta empresa");
+        expect(createOperator).not.toHaveBeenCalled();
     });
 });

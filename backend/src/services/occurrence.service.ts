@@ -41,21 +41,11 @@ export class OccurrenceService {
         return postgresRepository.saveOccurrence(occurrence);
     }
 
-    listAssignableManagers(occurrenceId: string) {
-        return postgresRepository.listAssignableManagers(occurrenceId);
-    }
-
-    async update(id: string, managerId: string, input: { status?: Status; priority?: Priority; assigneeId?: string | null; solution?: string; note?: string }) {
+    async update(id: string, managerId: string, input: { status?: Status; priority?: Priority; operatorId?: string | null; solution?: string; note?: string }) {
         const occurrence = await this.find(id);
         if (!occurrence) return undefined;
-        if (input.assigneeId) {
-            const assignee = await postgresRepository.findUserById(input.assigneeId);
-            if (!assignee || (assignee.role !== "GESTOR" && assignee.role !== "ADMIN")) {
-                throw new Error("O responsável selecionado não é um gestor válido");
-            }
-            if (assignee.role === "GESTOR" && (!occurrence.companyId || !(await postgresRepository.managerOwnsCompany(assignee.id, occurrence.companyId)))) {
-                throw new Error("O responsável selecionado não pertence à empresa desta ocorrência");
-            }
+        if (input.operatorId && (!occurrence.companyId || !(await postgresRepository.findOperatorForCompany(occurrence.companyId, input.operatorId)))) {
+            throw new Error("O operador selecionado não pertence à empresa desta ocorrência");
         }
         let history: StatusHistory | undefined;
         if (input.status && input.status !== occurrence.status) {
@@ -66,7 +56,7 @@ export class OccurrenceService {
             occurrence.status = input.status;
         }
         if (input.priority) occurrence.priority = input.priority;
-        if (input.assigneeId !== undefined) occurrence.assigneeId = input.assigneeId || undefined;
+        if (input.operatorId !== undefined) occurrence.operatorId = input.operatorId || undefined;
         if (input.solution !== undefined) occurrence.solution = input.solution;
         occurrence.updatedAt = new Date().toISOString();
         return postgresRepository.updateOccurrence(occurrence, history);

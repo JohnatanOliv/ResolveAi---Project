@@ -1,7 +1,7 @@
 import { Pool, PoolClient } from "pg";
 import { randomUUID } from "node:crypto";
 import dotenv from "dotenv";
-import { AuthUser, Comment, Company, CompanyLocation, ManagerAccessRequest, Occurrence, Priority, Role, Status, StatusHistory, User } from "../types/domain";
+import { AuthUser, Comment, Company, CompanyLocation, CompanyOperator, ManagerAccessRequest, Occurrence, Priority, Role, Status, StatusHistory, User } from "../types/domain";
 
 dotenv.config();
 
@@ -66,6 +66,9 @@ function mapOccurrence(row: Record<string, any>, comments: Comment[] = [], histo
         locationId: row.location_id || undefined,
         locationName: row.location_name || undefined,
         locationAddress: row.location_address || undefined,
+        operatorId: row.operator_id || undefined,
+        operatorName: row.operator_name || undefined,
+        operatorPhone: row.operator_phone || undefined,
         imageUrl: row.image_url || undefined,
         priority: row.priority as Priority,
         status: row.status as Status,
@@ -137,6 +140,42 @@ export class PostgresRepository {
         return { id: row.id, companyId: row.company_id, name: row.name, address: row.address, createdAt: iso(row.created_at) };
     }
 
+    async listOperators(companyId: string): Promise<CompanyOperator[]> {
+        const result = await pool.query(
+            `SELECT * FROM company_operators
+             WHERE company_id = $1 AND active = TRUE
+             ORDER BY name ASC`,
+            [companyId],
+        );
+        return result.rows.map((row) => ({
+            id: row.id,
+            companyId: row.company_id,
+            name: row.name,
+            phone: row.phone || undefined,
+            createdAt: iso(row.created_at),
+        }));
+    }
+
+    async createOperator(companyId: string, name: string, phone?: string): Promise<CompanyOperator> {
+        const result = await pool.query(
+            `INSERT INTO company_operators (id, company_id, name, phone)
+             VALUES ($1, $2, $3, $4) RETURNING *`,
+            [randomUUID(), companyId, name, phone || null],
+        );
+        const row = result.rows[0];
+        return { id: row.id, companyId: row.company_id, name: row.name, phone: row.phone || undefined, createdAt: iso(row.created_at) };
+    }
+
+    async findOperatorForCompany(companyId: string, operatorId: string) {
+        const result = await pool.query(
+            `SELECT * FROM company_operators
+             WHERE id = $1 AND company_id = $2 AND active = TRUE`,
+            [operatorId, companyId],
+        );
+        const row = result.rows[0];
+        return row ? { id: row.id, companyId: row.company_id, name: row.name, phone: row.phone || undefined, createdAt: iso(row.created_at) } as CompanyOperator : undefined;
+    }
+
     async findLocationForCompany(companyId: string, locationId: string) {
         const result = await pool.query(
             `SELECT l.*, c.name AS company_name FROM company_locations l
@@ -156,22 +195,6 @@ export class PostgresRepository {
     async findUserByEmail(email: string) {
         const result = await pool.query("SELECT * FROM users WHERE email = $1", [email]);
         return result.rows[0] ? mapUser(result.rows[0]) : undefined;
-    }
-
-    async listAssignableManagers(occurrenceId: string) {
-        const result = await pool.query(
-            `SELECT u.id, u.name, u.email, u.role
-             FROM users u
-             WHERE u.role = 'ADMIN'
-                OR (u.role = 'GESTOR' AND u.id = (
-                    SELECT c.manager_id FROM occurrences o
-                    INNER JOIN companies c ON c.id = o.company_id
-                    WHERE o.id = $1 AND c.active = TRUE
-                ))
-             ORDER BY u.name ASC`,
-            [occurrenceId],
-        );
-        return result.rows.map((row) => ({ id: row.id, name: row.name, email: row.email, role: row.role as Role }));
     }
 
     async saveUser(user: User) {
@@ -257,11 +280,13 @@ export class PostgresRepository {
 
     private async hydrate(id: string, client: Pool | PoolClient = pool) {
         const occurrenceResult = await client.query(
-            `SELECT o.*, r.rating, c.name AS company_name, l.name AS location_name, l.address AS location_address
+                `SELECT o.*, r.rating, c.name AS company_name, l.name AS location_name, l.address AS location_address,
+                    op.name AS operator_name, op.phone AS operator_phone
              FROM occurrences o
              LEFT JOIN occurrence_ratings r ON r.occurrence_id = o.id
              LEFT JOIN companies c ON c.id = o.company_id
              LEFT JOIN company_locations l ON l.id = o.location_id
+                 LEFT JOIN company_operators op ON op.id = o.operator_id
              WHERE o.id = $1`,
             [id],
         );
@@ -297,11 +322,13 @@ export class PostgresRepository {
         if (filters.priority) { values.push(filters.priority); conditions.push(`o.priority = $${values.length}`); }
         const where = conditions.length ? `WHERE ${conditions.join(" AND ")}` : "";
         const result = await pool.query(
-            `SELECT o.*, r.rating, c.name AS company_name, l.name AS location_name, l.address AS location_address
+                `SELECT o.*, r.rating, c.name AS company_name, l.name AS location_name, l.address AS location_address,
+                    op.name AS operator_name, op.phone AS operator_phone
              FROM occurrences o
              LEFT JOIN occurrence_ratings r ON r.occurrence_id = o.id
              LEFT JOIN companies c ON c.id = o.company_id
              LEFT JOIN company_locations l ON l.id = o.location_id
+                 LEFT JOIN company_operators op ON op.id = o.operator_id
              ${where} ORDER BY o.created_at DESC`,
             values,
         );
@@ -326,11 +353,11 @@ export class PostgresRepository {
             await client.query("BEGIN");
             await client.query(
                 `INSERT INTO occurrences
-                 (id, title, description, category, location, company_id, location_id, image_url, priority, status, requester_id, assignee_id, solution, created_at, updated_at)
-                 VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15)`,
+                      (id, title, description, category, location, company_id, location_id, operator_id, image_url, priority, status, requester_id, assignee_id, solution, created_at, updated_at)
+                      VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16)`,
                 [occurrence.id, occurrence.title, occurrence.description, occurrence.category, occurrence.location,
-                    occurrence.companyId || null, occurrence.locationId || null, occurrence.imageUrl || null,
-                    occurrence.priority, occurrence.status, occurrence.requesterId, occurrence.assigneeId || null,
+                          occurrence.companyId || null, occurrence.locationId || null, occurrence.operatorId || null, occurrence.imageUrl || null,
+                          occurrence.priority, occurrence.status, occurrence.requesterId, occurrence.assigneeId || null,
                     occurrence.solution || null, occurrence.createdAt, occurrence.updatedAt],
             );
             const initialHistory = occurrence.history[0];
@@ -358,8 +385,8 @@ export class PostgresRepository {
         try {
             await client.query("BEGIN");
             await client.query(
-                `UPDATE occurrences SET status = $2, priority = $3, assignee_id = $4, solution = $5, updated_at = $6 WHERE id = $1`,
-                [occurrence.id, occurrence.status, occurrence.priority, occurrence.assigneeId || null, occurrence.solution || null, occurrence.updatedAt],
+                `UPDATE occurrences SET status = $2, priority = $3, operator_id = $4, solution = $5, updated_at = $6 WHERE id = $1`,
+                [occurrence.id, occurrence.status, occurrence.priority, occurrence.operatorId || null, occurrence.solution || null, occurrence.updatedAt],
             );
             if (history) {
                 await client.query(

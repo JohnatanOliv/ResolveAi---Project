@@ -42,6 +42,26 @@ export class CompanyService {
         }
         return postgresRepository.createLocation(companyId, name, address);
     }
+
+    async listOperators(user: AuthUser, companyId: string) {
+        if (!canManage(user)) throw new Error("Acesso restrito a gestores");
+        if (user.role !== "ADMIN" && !(await postgresRepository.managerOwnsCompany(user.id, companyId))) {
+            throw new Error("Você não administra esta empresa");
+        }
+        return postgresRepository.listOperators(companyId);
+    }
+
+    async addOperator(user: AuthUser, companyId: string, rawName: string, rawPhone?: string) {
+        if (!canManage(user)) throw new Error("Acesso restrito a gestores");
+        const name = rawName.trim();
+        const phone = rawPhone?.trim() || undefined;
+        if (!name) throw new Error("Informe o nome do operador");
+        if (name.length > 120 || (phone && phone.length > 40)) throw new Error("O nome ou telefone excede o limite permitido");
+        if (user.role !== "ADMIN" && !(await postgresRepository.managerOwnsCompany(user.id, companyId))) {
+            throw new Error("Você não administra esta empresa");
+        }
+        return postgresRepository.createOperator(companyId, name, phone);
+    }
 }
 
 export const companyService = new CompanyService();

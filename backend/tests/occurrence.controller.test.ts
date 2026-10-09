@@ -1,11 +1,10 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { Response } from "express";
 
-const { createOccurrence, findOccurrence, managerOwnsOccurrence, listAssignableManagers, listOccurrences } = vi.hoisted(() => ({
+const { createOccurrence, findOccurrence, managerOwnsOccurrence, listOccurrences } = vi.hoisted(() => ({
     createOccurrence: vi.fn(),
     findOccurrence: vi.fn(),
     managerOwnsOccurrence: vi.fn(),
-    listAssignableManagers: vi.fn(),
     listOccurrences: vi.fn(),
 }));
 
@@ -14,14 +13,13 @@ vi.mock("../src/services/occurrence.service", () => ({
         create: createOccurrence,
         find: findOccurrence,
         list: listOccurrences,
-        listAssignableManagers,
         managerOwnsOccurrence,
     },
     validPriorities: ["BAIXA", "MEDIA", "ALTA", "URGENTE"],
 }));
 
 import { AuthRequest } from "../src/middleware/auth.middleware";
-import { create, getById, list, listAssignableManagers as listManagers } from "../src/controllers/occurrence.controller";
+import { create, getById, list } from "../src/controllers/occurrence.controller";
 
 function responseMock() {
     return { status: vi.fn().mockReturnThis(), json: vi.fn().mockReturnThis() } as unknown as Response;
@@ -93,17 +91,6 @@ describe("occurrence API contract", () => {
 
         expect(listOccurrences).toHaveBeenCalledWith(req.user, req.query);
         expect(res.json).toHaveBeenCalledWith({ data: [], total: 0 });
-    });
-
-    it("returns only the assignable manager directory", async () => {
-        listAssignableManagers.mockResolvedValue([{ id: "manager-1", name: "Gestor", role: "GESTOR" }]);
-        findOccurrence.mockResolvedValue({ id: "occ-1", requesterId: "requester-1" });
-        const res = responseMock();
-
-        await listManagers({ user: { id: "admin-1", role: "ADMIN" }, params: { id: "occ-1" } } as unknown as AuthRequest, res, vi.fn());
-
-        expect(res.json).toHaveBeenCalledWith({ data: [{ id: "manager-1", name: "Gestor", role: "GESTOR" }] });
-        expect(listAssignableManagers).toHaveBeenCalledWith("occ-1");
     });
 
     it("blocks a manager from another company from viewing an occurrence", async () => {

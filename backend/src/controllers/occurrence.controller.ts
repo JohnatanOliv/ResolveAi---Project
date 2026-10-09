@@ -16,17 +16,6 @@ async function canAccess(req: AuthRequest, occurrence: { id: string; requesterId
 
 export async function list(req: AuthRequest, res: Response) { const data = await occurrenceService.list(req.user!, req.query); res.json({ data, total: data.length }); }
 
-export async function listAssignableManagers(req: AuthRequest, res: Response, next: import("express").NextFunction) {
-    try {
-        const occurrence = await getOccurrence(req, res);
-        if (!occurrence) return;
-        if (!(await canAccess(req, occurrence))) return res.status(403).json({ message: "Sem permissão para consultar responsáveis desta ocorrência" });
-        res.json({ data: await occurrenceService.listAssignableManagers(occurrence.id) });
-    } catch (error) {
-        next(error);
-    }
-}
-
 export async function create(req: AuthRequest, res: Response, next: NextFunction) {
     const { title, description, category, location, companyId, locationId, imageUrl, priority = "MEDIA" } = req.body;
     if (!title || !description || !category || !companyId || !locationId) return res.status(400).json({ message: "Título, descrição, categoria, empresa e endereço são obrigatórios" });

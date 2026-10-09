@@ -33,6 +33,14 @@ export interface CompanyLocation {
     createdAt: string;
 }
 
+export interface CompanyOperator {
+    id: string;
+    companyId: string;
+    name: string;
+    phone?: string;
+    createdAt: string;
+}
+
 export interface ManagerAccessRequest {
     id: string;
     requesterId: string;
@@ -74,6 +82,9 @@ export interface Occurrence {
     locationId?: string;
     locationName?: string;
     locationAddress?: string;
+    operatorId?: string;
+    operatorName?: string;
+    operatorPhone?: string;
     imageUrl?: string;
     priority: Priority;
     status: Status;

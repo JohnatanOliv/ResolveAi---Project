@@ -2,21 +2,19 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 
 const {
     findOccurrenceById,
-    findUserById,
     findLocationForCompany,
+    findOperatorForCompany,
     managerOwnsCompany,
     managerOwnsOccurrence,
-    listAssignableManagers,
     rateOccurrence,
     saveOccurrence,
     updateOccurrence,
 } = vi.hoisted(() => ({
     findOccurrenceById: vi.fn(),
-    findUserById: vi.fn(),
     findLocationForCompany: vi.fn(),
+    findOperatorForCompany: vi.fn(),
     managerOwnsCompany: vi.fn(),
     managerOwnsOccurrence: vi.fn(),
-    listAssignableManagers: vi.fn(),
     rateOccurrence: vi.fn(),
     saveOccurrence: vi.fn(),
     updateOccurrence: vi.fn(),
@@ -28,8 +26,7 @@ vi.mock("../src/repositories/postgres.repository", () => ({
         findLocationForCompany,
         managerOwnsCompany,
         managerOwnsOccurrence,
-        findUserById,
-        listAssignableManagers,
+        findOperatorForCompany,
         rate: rateOccurrence,
         saveOccurrence,
         updateOccurrence,
@@ -131,34 +128,23 @@ describe("occurrence lifecycle", () => {
         expect(result.history).toBeUndefined();
     });
 
-    it("rejects an assignee who is not a manager", async () => {
+    it("rejects an operator who is not registered under the occurrence company", async () => {
         findOccurrenceById.mockResolvedValue({ ...openOccurrence });
-        findUserById.mockResolvedValue({ id: "requester-2", role: "SOLICITANTE" });
+        findOperatorForCompany.mockResolvedValue(undefined);
 
-        await expect(service.update("occurrence-1", "manager-1", { assigneeId: "requester-2" }))
-            .rejects.toThrow("O responsável selecionado não é um gestor válido");
+        await expect(service.update("occurrence-1", "manager-1", { operatorId: "operator-2" }))
+            .rejects.toThrow("O operador selecionado não pertence à empresa desta ocorrência");
         expect(updateOccurrence).not.toHaveBeenCalled();
     });
 
-    it("accepts a valid manager assignment", async () => {
+    it("accepts an operator from the occurrence company", async () => {
         findOccurrenceById.mockResolvedValue({ ...openOccurrence });
-        findUserById.mockResolvedValue({ id: "manager-1", role: "GESTOR" });
-        managerOwnsCompany.mockResolvedValue(true);
+        findOperatorForCompany.mockResolvedValue({ id: "operator-1", companyId: "company-1", name: "Ana" });
         updateOccurrence.mockImplementation(async (occurrence) => occurrence);
 
-        await service.update("occurrence-1", "admin-1", { assigneeId: "manager-1" });
+        await service.update("occurrence-1", "manager-1", { operatorId: "operator-1" });
 
-        expect(updateOccurrence).toHaveBeenCalledWith(expect.objectContaining({ assigneeId: "manager-1" }), undefined);
-    });
-
-    it("rejects assigning a gestor who belongs to a different company", async () => {
-        findOccurrenceById.mockResolvedValue({ ...openOccurrence });
-        findUserById.mockResolvedValue({ id: "manager-2", role: "GESTOR" });
-        managerOwnsCompany.mockResolvedValue(false);
-
-        await expect(service.update("occurrence-1", "manager-1", { assigneeId: "manager-2" }))
-            .rejects.toThrow("O responsável selecionado não pertence à empresa desta ocorrência");
-        expect(updateOccurrence).not.toHaveBeenCalled();
+        expect(updateOccurrence).toHaveBeenCalledWith(expect.objectContaining({ operatorId: "operator-1" }), undefined);
     });
 
     it("rejects invalid lifecycle transitions", async () => {

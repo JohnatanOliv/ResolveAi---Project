@@ -37,6 +37,19 @@ CREATE TABLE IF NOT EXISTS company_locations
 
 CREATE INDEX IF NOT EXISTS ix_company_locations_company ON company_locations (company_id, name) WHERE active = TRUE;
 
+CREATE TABLE IF NOT EXISTS company_operators
+(
+    id UUID PRIMARY KEY,
+    company_id UUID NOT NULL REFERENCES companies (id),
+    name VARCHAR(120) NOT NULL,
+    phone VARCHAR(40),
+    active BOOLEAN NOT NULL DEFAULT TRUE,
+    created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+    UNIQUE (id, company_id)
+);
+
+CREATE INDEX IF NOT EXISTS ix_company_operators_company ON company_operators (company_id, name) WHERE active = TRUE;
+
 CREATE TABLE IF NOT EXISTS occurrences
 (
     id UUID PRIMARY KEY,
@@ -46,6 +59,7 @@ CREATE TABLE IF NOT EXISTS occurrences
     location VARCHAR(240) NOT NULL,
     company_id UUID REFERENCES companies (id),
     location_id UUID,
+    operator_id UUID,
     image_url TEXT,
     priority VARCHAR(20) NOT NULL DEFAULT 'MEDIA' CHECK (priority IN ('BAIXA', 'MEDIA', 'ALTA', 'URGENTE')),
     status VARCHAR(20) NOT NULL DEFAULT 'ABERTA' CHECK (status IN ('ABERTA', 'EM_ANALISE', 'EM_ATENDIMENTO', 'RESOLVIDA', 'CANCELADA')),
@@ -55,7 +69,9 @@ CREATE TABLE IF NOT EXISTS occurrences
     created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
     updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
     CONSTRAINT ck_occurrence_company_location_pair CHECK ((company_id IS NULL) = (location_id IS NULL)),
-    CONSTRAINT fk_occurrence_company_location FOREIGN KEY (location_id, company_id) REFERENCES company_locations (id, company_id)
+    CONSTRAINT fk_occurrence_company_location FOREIGN KEY (location_id, company_id) REFERENCES company_locations (id, company_id),
+    CONSTRAINT ck_occurrence_operator_company CHECK (operator_id IS NULL OR company_id IS NOT NULL),
+    CONSTRAINT fk_occurrence_operator_company FOREIGN KEY (operator_id, company_id) REFERENCES company_operators (id, company_id)
 );
 
 CREATE INDEX IF NOT EXISTS ix_occurrences_requester_id ON occurrences (requester_id);
@@ -130,10 +146,13 @@ SELECT
     rating.rating,
     company.name AS company_name,
     location.name AS location_name,
-    location.address AS location_address
+    location.address AS location_address,
+    operator.name AS operator_name,
+    operator.phone AS operator_phone
 FROM occurrences o
 INNER JOIN users requester ON requester.id = o.requester_id
 LEFT JOIN users assignee ON assignee.id = o.assignee_id
 LEFT JOIN occurrence_ratings rating ON rating.occurrence_id = o.id
 LEFT JOIN companies company ON company.id = o.company_id
-LEFT JOIN company_locations location ON location.id = o.location_id;
+LEFT JOIN company_locations location ON location.id = o.location_id
+LEFT JOIN company_operators operator ON operator.id = o.operator_id;

@@ -56,3 +56,32 @@ export async function addLocation(req: AuthRequest, res: Response, next: NextFun
         next(error);
     }
 }
+
+export async function listOperators(req: AuthRequest, res: Response, next: NextFunction) {
+    try {
+        res.json({ data: await companyService.listOperators(req.user!, String(req.params.companyId)) });
+    } catch (error) {
+        if (error instanceof Error && error.message === "Você não administra esta empresa") {
+            return res.status(403).json({ message: error.message });
+        }
+        next(error);
+    }
+}
+
+export async function addOperator(req: AuthRequest, res: Response, next: NextFunction) {
+    const name = typeof req.body.name === "string" ? req.body.name : "";
+    const phone = typeof req.body.phone === "string" ? req.body.phone : "";
+    try {
+        res.status(201).json({ data: await companyService.addOperator(req.user!, String(req.params.companyId), name, phone) });
+    } catch (error) {
+        if (error instanceof Error && [
+            "Acesso restrito a gestores",
+            "Você não administra esta empresa",
+            "Informe o nome do operador",
+            "O nome ou telefone excede o limite permitido",
+        ].includes(error.message)) {
+            return res.status(error.message === "Acesso restrito a gestores" || error.message === "Você não administra esta empresa" ? 403 : 400).json({ message: error.message });
+        }
+        next(error);
+    }
+}

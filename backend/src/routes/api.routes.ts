@@ -21,8 +21,9 @@ apiRouter.get("/companies/managed", requireAuth, requireManager, companyControll
 apiRouter.post("/companies", requireAuth, requireManager, companyController.create);
 apiRouter.get("/companies/:companyId/locations", requireAuth, companyController.listLocations);
 apiRouter.post("/companies/:companyId/locations", requireAuth, requireManager, companyController.addLocation);
+apiRouter.get("/companies/:companyId/operators", requireAuth, requireManager, companyController.listOperators);
+apiRouter.post("/companies/:companyId/operators", requireAuth, requireManager, companyController.addOperator);
 
-apiRouter.get("/occurrences/:id/assignees", requireAuth, requireManager, occurrenceController.listAssignableManagers);
 apiRouter.get("/occurrences", requireAuth, occurrenceController.list);
 apiRouter.post("/occurrences", requireAuth, occurrenceController.create);
 apiRouter.get("/occurrences/:id", requireAuth, occurrenceController.getById);

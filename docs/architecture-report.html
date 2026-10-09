@@ -110,7 +110,9 @@
     <rect class="node-dark" x="355" y="25" width="190" height="90" rx="13"/><text class="light" x="450" y="60" text-anchor="middle">users</text><text class="light-sub" x="450" y="84" text-anchor="middle">SOLICITANTE · GESTOR · ADMIN</text>
     <rect class="node" x="25" y="32" width="205" height="74" rx="13"/><text class="label" x="127" y="64" text-anchor="middle">companies</text><text class="sub" x="127" y="87" text-anchor="middle">manager_id · name</text>
     <rect class="node" x="25" y="145" width="205" height="74" rx="13"/><text class="label" x="127" y="177" text-anchor="middle">company_locations</text><text class="sub" x="127" y="199" text-anchor="middle">company_id · name · address</text>
-    <rect class="node-accent" x="350" y="180" width="200" height="100" rx="13"/><text class="label" x="450" y="218" text-anchor="middle">occurrences</text><text class="sub" x="450" y="242" text-anchor="middle">status · priority · solution</text><text class="sub" x="450" y="262" text-anchor="middle">requester_id · assignee_id</text>
+    <rect class="node" x="25" y="245" width="205" height="74" rx="13"/><text class="label" x="127" y="277" text-anchor="middle">company_operators</text><text class="sub" x="127" y="299" text-anchor="middle">name · phone · active</text>
+      <rect class="node" x="25" y="245" width="205" height="74" rx="13"/><text class="label" x="127" y="277" text-anchor="middle">company_operators</text><text class="sub" x="127" y="299" text-anchor="middle">name · phone · sem login</text>
+    <rect class="node-accent" x="350" y="180" width="200" height="100" rx="13"/><text class="label" x="450" y="218" text-anchor="middle">occurrences</text><text class="sub" x="450" y="242" text-anchor="middle">status · priority · solution</text><text class="sub" x="450" y="262" text-anchor="middle">company_id · operator_id</text>
     <rect class="node" x="45" y="340" width="190" height="80" rx="13"/><text class="label" x="140" y="375" text-anchor="middle">occurrence_comments</text><text class="sub" x="140" y="399" text-anchor="middle">author_id · text · created_at</text>
     <rect class="node" x="270" y="340" width="210" height="80" rx="13"/><text class="label" x="375" y="375" text-anchor="middle">status_history</text><text class="sub" x="375" y="399" text-anchor="middle">from/to · actor · note</text>
     <rect class="node" x="510" y="340" width="180" height="80" rx="13"/><text class="label" x="600" y="375" text-anchor="middle">ratings</text><text class="sub" x="600" y="399" text-anchor="middle">rating 1–5</text>
@@ -119,7 +121,8 @@
     <path class="edge" d="M355 55 C300 35 260 40 230 62"/><text class="edge-label" x="273" y="34">gestor administra</text>
     <path class="edge" d="M127 106 L127 145"/><text class="edge-label" x="139" y="132">1 : N</text>
     <path class="edge" d="M230 183 C280 183 315 204 350 220"/><text class="edge-label" x="265" y="207">local selecionado</text>
-    <path class="edge" d="M390 115 C340 145 350 155 390 180"/><text class="edge-label" x="293" y="151">1 : N assignee</text>
+    <path class="edge" d="M127 219 L127 245"/><text class="edge-label" x="140" y="239">empresa</text>
+    <path class="edge" d="M230 282 C275 282 305 260 350 250"/><text class="edge-label" x="268" y="276">operador atribuído</text>
     <path class="edge" d="M400 280 C330 315 220 315 180 340"/><path class="edge" d="M440 280 L390 340"/><path class="edge" d="M495 280 C530 310 570 310 590 340"/>
     <path class="edge-public" d="M545 75 C650 75 750 115 790 180"/><text class="edge-label" x="680" y="103">solicitante + ADMIN decisor</text>
     <text class="sub" x="45" y="445">A view occurrence_summary agrega ocorrência, nomes de requester/assignee e rating.</text>
@@ -128,7 +131,7 @@
   <table class="table"><thead><tr><th>Área</th><th>Controle implementado</th><th>Observação operacional</th></tr></thead><tbody>
   <tr><td>Cadastro</td><td>Papel público fixado em SOLICITANTE.</td><td>Não confiar em role recebido do navegador.</td></tr>
   <tr><td>Rotas</td><td>JWT; middleware requireManager e requireAdmin.</td><td>Autorização verificada no backend.</td></tr>
-  <tr><td>Empresas</td><td>Gestores criam empresas e endereços; lista, detalhe, atribuição e alterações são limitadas às empresas administradas.</td><td>ADMIN possui visão global. Ocorrências antigas sem vínculo exigem classificação administrativa.</td></tr>
+  <tr><td>Empresas / operadores</td><td>Gestor cadastra empresa, endereço e operador (nome/telefone, sem login); operador só pode ser atribuído a ocorrência da mesma empresa.</td><td>ADMIN possui visão global. Ocorrências antigas sem vínculo exigem classificação administrativa.</td></tr>
   <tr><td>Senhas</td><td>Hash bcrypt antes de persistir.</td><td>Segredos de ambiente não devem entrar no repositório.</td></tr>
   <tr><td>Imagens</td><td>PNG/JPEG/WebP até 1 MB são enviados como data URL.</td><td>O MVP grava o conteúdo em image_url TEXT no Neon; migrar para object storage antes de maior escala.</td></tr>
   <tr><td>Banco</td><td>Parâmetros SQL preparados; conexão via DATABASE_URL; imagem, comentário, rating e histórico persistidos.</td><td>Neon é externo; não há banco em container local.</td></tr>

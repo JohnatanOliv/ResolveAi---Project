@@ -1,7 +1,7 @@
 import { ChangeEvent, FormEvent, useEffect, useState } from "react";
-import { AlertCircle, Building2, FilePlus2, ImagePlus, MapPin, MessageSquare, Star, X } from "lucide-react";
+import { AlertCircle, Building2, FilePlus2, ImagePlus, MapPin, MessageSquare, Star, UserRoundCheck, X } from "lucide-react";
 import { api } from "./api";
-import { AssignableManager, Company, CompanyLocation, Occurrence, Priority, Status, User } from "./types";
+import { Company, CompanyLocation, CompanyOperator, Occurrence, Priority, Status, User } from "./types";
 
 const categories = ["Iluminação", "Manutenção", "Limpeza", "Segurança", "Acessibilidade", "Vazamento", "Outro"];
 const statusLabels: Record<Status, string> = { ABERTA: "Aberta", EM_ANALISE: "Em análise", EM_ATENDIMENTO: "Em atendimento", RESOLVIDA: "Resolvida", CANCELADA: "Cancelada" };
@@ -143,20 +143,21 @@ export function OccurrenceDetailModal({ occurrence, user, onClose, onUpdated }: 
   const [comment, setComment] = useState("");
   const [status, setStatus] = useState(occurrence.status);
   const [priority, setPriority] = useState(occurrence.priority);
-  const [assigneeId, setAssigneeId] = useState(occurrence.assigneeId || "");
+  const [operatorId, setOperatorId] = useState(occurrence.operatorId || "");
   const [solution, setSolution] = useState(occurrence.solution || "");
   const [note, setNote] = useState("");
   const [rating, setRating] = useState(occurrence.rating || 0);
-  const [managers, setManagers] = useState<AssignableManager[]>([]);
+  const [operators, setOperators] = useState<CompanyOperator[]>([]);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState("");
 
   useEffect(() => {
-    if (!canManage) return;
-    api.assignableManagers(occurrence.id).then((result) => setManagers(result.data)).catch((loadError) => {
-      setError(loadError instanceof Error ? loadError.message : "Não foi possível carregar os responsáveis");
+    if (!canManage || !occurrence.companyId) return;
+    if (!occurrence.companyId) return;
+    api.companyOperators(occurrence.companyId).then((result) => setOperators(result.data)).catch((loadError) => {
+      setError(loadError instanceof Error ? loadError.message : "Não foi possível carregar os operadores da empresa");
     });
-  }, [canManage, occurrence.id]);
+  }, [canManage, occurrence.companyId]);
 
   async function save() {
     const statusChanged = status !== occurrence.status;
@@ -167,10 +168,10 @@ export function OccurrenceDetailModal({ occurrence, user, onClose, onUpdated }: 
     setBusy(true);
     setError("");
     try {
-      const changes: { status?: Status; priority?: Priority; assigneeId?: string | null; solution?: string; note?: string } = {};
+      const changes: { status?: Status; priority?: Priority; operatorId?: string | null; solution?: string; note?: string } = {};
       if (statusChanged) { changes.status = status; changes.note = note.trim(); }
       if (priority !== occurrence.priority) changes.priority = priority;
-      if (assigneeId !== (occurrence.assigneeId || "")) changes.assigneeId = assigneeId || null;
+      if (operatorId !== (occurrence.operatorId || "")) changes.operatorId = operatorId || null;
       if (solution !== (occurrence.solution || "")) changes.solution = solution;
       if (canManage && Object.keys(changes).length) await api.updateOccurrence(occurrence.id, changes);
       if (comment.trim()) await api.comment(occurrence.id, comment.trim());
@@ -198,7 +199,7 @@ export function OccurrenceDetailModal({ occurrence, user, onClose, onUpdated }: 
   }
 
   return <Modal title={occurrence.title} subtitle={`Registrada em ${formatDate(occurrence.createdAt)}`} onClose={onClose}>
-    <div className="detail-meta"><span className={`status-pill ${occurrence.status.toLowerCase()}`}><i />{statusLabels[occurrence.status]}</span><span className={`priority ${occurrence.priority.toLowerCase()}`}>{priorityLabels[occurrence.priority]}</span>{occurrence.companyName && <span><Building2 size={14} /> {occurrence.companyName}</span>}<span><MapPin size={14} /> {occurrence.locationName ? `${occurrence.locationName} · ${occurrence.locationAddress}` : occurrence.location}</span></div>
+    <div className="detail-meta"><span className={`status-pill ${occurrence.status.toLowerCase()}`}><i />{statusLabels[occurrence.status]}</span><span className={`priority ${occurrence.priority.toLowerCase()}`}>{priorityLabels[occurrence.priority]}</span>{occurrence.companyName && <span><Building2 size={14} /> {occurrence.companyName}</span>}<span><MapPin size={14} /> {occurrence.locationName ? `${occurrence.locationName} · ${occurrence.locationAddress}` : occurrence.location}</span>{occurrence.operatorName && <span><UserRoundCheck size={14} /> Operador: {occurrence.operatorName}{occurrence.operatorPhone ? ` · ${occurrence.operatorPhone}` : ""}</span>}</div>
     {occurrence.imageUrl && <img className="occurrence-image" src={occurrence.imageUrl} alt={`Imagem anexada: ${occurrence.title}`} />}
     <div className="detail-description"><span className="section-kicker">DESCRIÇÃO</span><p>{occurrence.description}</p></div>
     {occurrence.history.length > 0 && <div className="timeline"><span className="section-kicker">HISTÓRICO</span>{occurrence.history.map((entry) => <div className="timeline-row" key={entry.id}><span className="timeline-dot" /><div><strong>{entry.previousStatus ? `${statusLabels[entry.previousStatus]} → ` : "Registro inicial · "}{statusLabels[entry.newStatus]}</strong><small>{formatDate(entry.changedAt)} · {entry.changedByName || `Usuário ${entry.changedBy.slice(0, 8)}`}{entry.note ? ` · ${entry.note}` : ""}</small></div></div>)}</div>}
@@ -207,7 +208,7 @@ export function OccurrenceDetailModal({ occurrence, user, onClose, onUpdated }: 
     {canManage && <div className="manager-edit">
       <label>Status<select value={status} onChange={(event) => setStatus(event.target.value as Status)}>{statuses.map((item) => <option key={item} value={item}>{statusLabels[item]}</option>)}</select></label>
       <label>Prioridade<select value={priority} onChange={(event) => setPriority(event.target.value as Priority)}>{priorities.map((item) => <option key={item} value={item}>{priorityLabels[item]}</option>)}</select></label>
-      <label>Responsável<select value={assigneeId} onChange={(event) => setAssigneeId(event.target.value)}><option value="">Sem responsável atribuído</option>{managers.map((manager) => <option key={manager.id} value={manager.id}>{manager.name} · {manager.role === "ADMIN" ? "Administrador" : "Gestor"}</option>)}</select></label>
+      <label>Operador responsável<select value={operatorId} onChange={(event) => setOperatorId(event.target.value)} disabled={!occurrence.companyId || !operators.length}><option value="">{!occurrence.companyId ? "Ocorrência sem empresa" : operators.length ? "Sem operador atribuído" : "Cadastre operadores na empresa"}</option>{operators.map((operator) => <option key={operator.id} value={operator.id}>{operator.name}{operator.phone ? ` · ${operator.phone}` : ""}</option>)}</select></label>
       {status !== occurrence.status && <label>Observação da mudança<textarea value={note} onChange={(event) => setNote(event.target.value)} placeholder="Descreva o motivo da mudança de status..." rows={2} required /></label>}
       <label>Solução aplicada<textarea value={solution} onChange={(event) => setSolution(event.target.value)} placeholder="Descreva a solução aplicada..." rows={2} /></label>
     </div>}

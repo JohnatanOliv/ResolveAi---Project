@@ -1,4 +1,4 @@
-import { AssignableManager, Company, CompanyLocation, Dashboard, ManagerAccessRequest, Occurrence, Priority, Status, User } from "./types";
+import { Company, CompanyLocation, CompanyOperator, Dashboard, ManagerAccessRequest, Occurrence, Priority, Status, User } from "./types";
 
 const API_URL = import.meta.env.VITE_API_URL || "http://localhost:3333/api";
 const tokenKey = "resolve-ai-token";
@@ -40,16 +40,17 @@ export const api = {
   login: (data: { email: string; password: string }) => request<{ user: User; token: string }>("/auth/login", { method: "POST", body: JSON.stringify(data) }),
   occurrences: (filters = "") => request<{ data: Occurrence[]; total: number }>(`/occurrences${filters}`),
   createOccurrence: (data: Partial<Occurrence>) => request<Occurrence>("/occurrences", { method: "POST", body: JSON.stringify(data) }),
-  updateOccurrence: (id: string, data: { status?: Status; priority?: Priority; assigneeId?: string | null; solution?: string; note?: string }) => request<Occurrence>(`/occurrences/${id}`, { method: "PATCH", body: JSON.stringify(data) }),
+  updateOccurrence: (id: string, data: { status?: Status; priority?: Priority; operatorId?: string | null; solution?: string; note?: string }) => request<Occurrence>(`/occurrences/${id}`, { method: "PATCH", body: JSON.stringify(data) }),
   comment: (id: string, text: string) => request(`/occurrences/${id}/comments`, { method: "POST", body: JSON.stringify({ text }) }),
   rate: (id: string, rating: number) => request(`/occurrences/${id}/rating`, { method: "POST", body: JSON.stringify({ rating }) }),
   dashboard: () => request<Dashboard>("/dashboard"),
-  assignableManagers: (occurrenceId: string) => request<{ data: AssignableManager[] }>(`/occurrences/${occurrenceId}/assignees`),
   companies: () => request<{ data: Company[] }>("/companies"),
   managedCompanies: () => request<{ data: Company[] }>("/companies/managed"),
   createCompany: (name: string) => request<{ data: Company }>("/companies", { method: "POST", body: JSON.stringify({ name }) }),
   companyLocations: (companyId: string) => request<{ data: CompanyLocation[] }>(`/companies/${companyId}/locations`),
   createCompanyLocation: (companyId: string, name: string, address: string) => request<{ data: CompanyLocation }>(`/companies/${companyId}/locations`, { method: "POST", body: JSON.stringify({ name, address }) }),
+  companyOperators: (companyId: string) => request<{ data: CompanyOperator[] }>(`/companies/${companyId}/operators`),
+  createCompanyOperator: (companyId: string, name: string, phone?: string) => request<{ data: CompanyOperator }>(`/companies/${companyId}/operators`, { method: "POST", body: JSON.stringify({ name, phone }) }),
   myManagerAccessRequest: () => request<{ data: ManagerAccessRequest | null }>("/manager-access-request"),
   requestManagerAccess: (reason: string) => request<{ data: ManagerAccessRequest }>("/manager-access-request", { method: "POST", body: JSON.stringify({ reason }) }),
   managerAccessRequests: () => request<{ data: ManagerAccessRequest[] }>("/admin/manager-access-requests"),
