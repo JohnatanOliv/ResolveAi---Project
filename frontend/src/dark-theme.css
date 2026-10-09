@@ -299,6 +299,8 @@ html[data-theme="dark"] .metric-icon.blue { background: #193743; color: #83c8ee;
 html[data-theme="dark"] .metric-icon.amber { background: #3e351e; color: #efc765; }
 html[data-theme="dark"] .metric-icon.green { background: #1d3c2d; color: #75d39a; }
 html[data-theme="dark"] .metric-icon.violet { background: #33284a; color: #c4a4ff; }
+html[data-theme="dark"] .metric-card strong { color: #e3efeb; }
+html[data-theme="dark"] .metric-card span { color: #a9beb7; }
 
 html[data-theme="dark"] .access-status-icon { background: #203735; color: #8ed9c4; }
 html[data-theme="dark"] .access-status-icon.pending { background: #443719; color: #f2d080; }

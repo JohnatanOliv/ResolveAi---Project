@@ -456,3 +456,8 @@ button:focus-visible {
   color: var(--muted);
   font-size: 11px;
 }
+
+button:disabled,
+button[aria-disabled="true"] {
+  cursor: not-allowed;
+}
