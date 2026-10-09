@@ -18,6 +18,21 @@ export interface AuthUser {
     role: Role;
 }
 
+export interface Company {
+    id: string;
+    name: string;
+    managerId: string;
+    createdAt: string;
+}
+
+export interface CompanyLocation {
+    id: string;
+    companyId: string;
+    name: string;
+    address: string;
+    createdAt: string;
+}
+
 export interface ManagerAccessRequest {
     id: string;
     requesterId: string;
@@ -37,6 +52,7 @@ export interface StatusHistory {
     newStatus: Status;
     note?: string;
     changedBy: string;
+    changedByName?: string;
     changedAt: string;
 }
 
@@ -53,6 +69,11 @@ export interface Occurrence {
     description: string;
     category: string;
     location: string;
+    companyId?: string;
+    companyName?: string;
+    locationId?: string;
+    locationName?: string;
+    locationAddress?: string;
     imageUrl?: string;
     priority: Priority;
     status: Status;

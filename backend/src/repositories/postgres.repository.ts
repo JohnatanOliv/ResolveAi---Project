@@ -1,7 +1,7 @@
 import { Pool, PoolClient } from "pg";
 import { randomUUID } from "node:crypto";
 import dotenv from "dotenv";
-import { AuthUser, Comment, ManagerAccessRequest, Occurrence, Priority, Role, Status, StatusHistory, User } from "../types/domain";
+import { AuthUser, Comment, Company, CompanyLocation, ManagerAccessRequest, Occurrence, Priority, Role, Status, StatusHistory, User } from "../types/domain";
 
 dotenv.config();
 
@@ -34,6 +34,7 @@ function mapHistory(row: Record<string, any>): StatusHistory {
         newStatus: row.new_status as Status,
         note: row.note || undefined,
         changedBy: row.changed_by,
+        changedByName: row.changed_by_name || undefined,
         changedAt: iso(row.changed_at),
     };
 }
@@ -60,6 +61,11 @@ function mapOccurrence(row: Record<string, any>, comments: Comment[] = [], histo
         description: row.description,
         category: row.category,
         location: row.location,
+        companyId: row.company_id || undefined,
+        companyName: row.company_name || undefined,
+        locationId: row.location_id || undefined,
+        locationName: row.location_name || undefined,
+        locationAddress: row.location_address || undefined,
         imageUrl: row.image_url || undefined,
         priority: row.priority as Priority,
         status: row.status as Status,
@@ -75,6 +81,73 @@ function mapOccurrence(row: Record<string, any>, comments: Comment[] = [], histo
 }
 
 export class PostgresRepository {
+    async listCompanies(_user: AuthUser): Promise<Company[]> {
+        const result = await pool.query("SELECT * FROM companies WHERE active = TRUE ORDER BY name ASC");
+        return result.rows.map((row) => ({ id: row.id, name: row.name, managerId: row.manager_id, createdAt: iso(row.created_at) }));
+    }
+
+    async listManagedCompanies(user: AuthUser): Promise<Company[]> {
+        const result = user.role === "ADMIN"
+            ? await pool.query("SELECT * FROM companies WHERE active = TRUE ORDER BY name ASC")
+            : await pool.query("SELECT * FROM companies WHERE manager_id = $1 AND active = TRUE ORDER BY name ASC", [user.id]);
+        return result.rows.map((row) => ({ id: row.id, name: row.name, managerId: row.manager_id, createdAt: iso(row.created_at) }));
+    }
+
+    async createCompany(managerId: string, name: string): Promise<Company> {
+        const result = await pool.query(
+            "INSERT INTO companies (id, name, manager_id) VALUES ($1, $2, $3) RETURNING *",
+            [randomUUID(), name, managerId],
+        );
+        const row = result.rows[0];
+        return { id: row.id, name: row.name, managerId: row.manager_id, createdAt: iso(row.created_at) };
+    }
+
+    async managerOwnsCompany(managerId: string, companyId: string) {
+        const result = await pool.query("SELECT 1 FROM companies WHERE id = $1 AND manager_id = $2 AND active = TRUE", [companyId, managerId]);
+        return result.rowCount === 1;
+    }
+
+    async managerOwnsOccurrence(managerId: string, occurrenceId: string) {
+        const result = await pool.query(
+            `SELECT 1 FROM occurrences o
+             INNER JOIN companies c ON c.id = o.company_id
+             WHERE o.id = $1 AND c.manager_id = $2 AND c.active = TRUE`,
+            [occurrenceId, managerId],
+        );
+        return result.rowCount === 1;
+    }
+
+    async listLocations(_user: AuthUser, companyId: string): Promise<CompanyLocation[]> {
+        const result = await pool.query(
+            `SELECT l.* FROM company_locations l
+             INNER JOIN companies c ON c.id = l.company_id
+             WHERE l.company_id = $1 AND l.active = TRUE AND c.active = TRUE
+             ORDER BY l.name ASC`,
+            [companyId],
+        );
+        return result.rows.map((row) => ({ id: row.id, companyId: row.company_id, name: row.name, address: row.address, createdAt: iso(row.created_at) }));
+    }
+
+    async createLocation(companyId: string, name: string, address: string): Promise<CompanyLocation> {
+        const result = await pool.query(
+            "INSERT INTO company_locations (id, company_id, name, address) VALUES ($1, $2, $3, $4) RETURNING *",
+            [randomUUID(), companyId, name, address],
+        );
+        const row = result.rows[0];
+        return { id: row.id, companyId: row.company_id, name: row.name, address: row.address, createdAt: iso(row.created_at) };
+    }
+
+    async findLocationForCompany(companyId: string, locationId: string) {
+        const result = await pool.query(
+            `SELECT l.*, c.name AS company_name FROM company_locations l
+             INNER JOIN companies c ON c.id = l.company_id
+             WHERE l.id = $1 AND l.company_id = $2 AND l.active = TRUE AND c.active = TRUE`,
+            [locationId, companyId],
+        );
+        const row = result.rows[0];
+        return row ? { id: row.id, name: row.name, address: row.address, companyName: row.company_name } : undefined;
+    }
+
     async findUserById(id: string) {
         const result = await pool.query("SELECT * FROM users WHERE id = $1", [id]);
         return result.rows[0] ? mapUser(result.rows[0]) : undefined;
@@ -83,6 +156,22 @@ export class PostgresRepository {
     async findUserByEmail(email: string) {
         const result = await pool.query("SELECT * FROM users WHERE email = $1", [email]);
         return result.rows[0] ? mapUser(result.rows[0]) : undefined;
+    }
+
+    async listAssignableManagers(occurrenceId: string) {
+        const result = await pool.query(
+            `SELECT u.id, u.name, u.email, u.role
+             FROM users u
+             WHERE u.role = 'ADMIN'
+                OR (u.role = 'GESTOR' AND u.id = (
+                    SELECT c.manager_id FROM occurrences o
+                    INNER JOIN companies c ON c.id = o.company_id
+                    WHERE o.id = $1 AND c.active = TRUE
+                ))
+             ORDER BY u.name ASC`,
+            [occurrenceId],
+        );
+        return result.rows.map((row) => ({ id: row.id, name: row.name, email: row.email, role: row.role as Role }));
     }
 
     async saveUser(user: User) {
@@ -168,9 +257,11 @@ export class PostgresRepository {
 
     private async hydrate(id: string, client: Pool | PoolClient = pool) {
         const occurrenceResult = await client.query(
-            `SELECT o.*, r.rating
+            `SELECT o.*, r.rating, c.name AS company_name, l.name AS location_name, l.address AS location_address
              FROM occurrences o
              LEFT JOIN occurrence_ratings r ON r.occurrence_id = o.id
+             LEFT JOIN companies c ON c.id = o.company_id
+             LEFT JOIN company_locations l ON l.id = o.location_id
              WHERE o.id = $1`,
             [id],
         );
@@ -178,7 +269,13 @@ export class PostgresRepository {
         if (!row) return undefined;
         const [commentsResult, historyResult] = await Promise.all([
             client.query("SELECT * FROM occurrence_comments WHERE occurrence_id = $1 ORDER BY created_at ASC", [id]),
-            client.query("SELECT * FROM occurrence_status_history WHERE occurrence_id = $1 ORDER BY changed_at ASC", [id]),
+            client.query(
+                `SELECT h.*, u.name AS changed_by_name
+                 FROM occurrence_status_history h
+                 INNER JOIN users u ON u.id = h.changed_by
+                 WHERE h.occurrence_id = $1 ORDER BY h.changed_at ASC`,
+                [id],
+            ),
         ]);
         return mapOccurrence(row, commentsResult.rows.map(mapComment), historyResult.rows.map(mapHistory));
     }
@@ -188,39 +285,72 @@ export class PostgresRepository {
     async listOccurrences(user: AuthUser, filters: { category?: unknown; status?: unknown; priority?: unknown }) {
         const values: unknown[] = [];
         const conditions = [];
-        if (user.role !== "GESTOR" && user.role !== "ADMIN") {
+        if (user.role === "SOLICITANTE") {
             values.push(user.id);
             conditions.push(`o.requester_id = $${values.length}`);
+        } else if (user.role === "GESTOR") {
+            values.push(user.id);
+            conditions.push(`EXISTS (SELECT 1 FROM companies managed_company WHERE managed_company.id = o.company_id AND managed_company.manager_id = $${values.length} AND managed_company.active = TRUE)`);
         }
         if (filters.category) { values.push(filters.category); conditions.push(`o.category = $${values.length}`); }
         if (filters.status) { values.push(filters.status); conditions.push(`o.status = $${values.length}`); }
         if (filters.priority) { values.push(filters.priority); conditions.push(`o.priority = $${values.length}`); }
         const where = conditions.length ? `WHERE ${conditions.join(" AND ")}` : "";
         const result = await pool.query(
-            `SELECT o.*, r.rating FROM occurrences o
+            `SELECT o.*, r.rating, c.name AS company_name, l.name AS location_name, l.address AS location_address
+             FROM occurrences o
              LEFT JOIN occurrence_ratings r ON r.occurrence_id = o.id
+             LEFT JOIN companies c ON c.id = o.company_id
+             LEFT JOIN company_locations l ON l.id = o.location_id
              ${where} ORDER BY o.created_at DESC`,
             values,
         );
         return Promise.all(result.rows.map(async (row) => {
             const [commentsResult, historyResult] = await Promise.all([
                 pool.query("SELECT * FROM occurrence_comments WHERE occurrence_id = $1 ORDER BY created_at ASC", [row.id]),
-                pool.query("SELECT * FROM occurrence_status_history WHERE occurrence_id = $1 ORDER BY changed_at ASC", [row.id]),
+                pool.query(
+                    `SELECT h.*, u.name AS changed_by_name
+                     FROM occurrence_status_history h
+                     INNER JOIN users u ON u.id = h.changed_by
+                     WHERE h.occurrence_id = $1 ORDER BY h.changed_at ASC`,
+                    [row.id],
+                ),
             ]);
             return mapOccurrence(row, commentsResult.rows.map(mapComment), historyResult.rows.map(mapHistory));
         }));
     }
 
     async saveOccurrence(occurrence: Occurrence) {
-        await pool.query(
-            `INSERT INTO occurrences
-             (id, title, description, category, location, image_url, priority, status, requester_id, assignee_id, solution, created_at, updated_at)
-             VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13)`,
-            [occurrence.id, occurrence.title, occurrence.description, occurrence.category, occurrence.location,
-                occurrence.imageUrl || null, occurrence.priority, occurrence.status, occurrence.requesterId,
-                occurrence.assigneeId || null, occurrence.solution || null, occurrence.createdAt, occurrence.updatedAt],
-        );
-        return occurrence;
+        const client = await pool.connect();
+        try {
+            await client.query("BEGIN");
+            await client.query(
+                `INSERT INTO occurrences
+                 (id, title, description, category, location, company_id, location_id, image_url, priority, status, requester_id, assignee_id, solution, created_at, updated_at)
+                 VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15)`,
+                [occurrence.id, occurrence.title, occurrence.description, occurrence.category, occurrence.location,
+                    occurrence.companyId || null, occurrence.locationId || null, occurrence.imageUrl || null,
+                    occurrence.priority, occurrence.status, occurrence.requesterId, occurrence.assigneeId || null,
+                    occurrence.solution || null, occurrence.createdAt, occurrence.updatedAt],
+            );
+            const initialHistory = occurrence.history[0];
+            if (initialHistory) {
+                await client.query(
+                    `INSERT INTO occurrence_status_history
+                     (id, occurrence_id, previous_status, new_status, note, changed_by, changed_at)
+                     VALUES ($1, $2, $3, $4, $5, $6, $7)`,
+                    [initialHistory.id, occurrence.id, initialHistory.previousStatus, initialHistory.newStatus,
+                        initialHistory.note || null, initialHistory.changedBy, initialHistory.changedAt],
+                );
+            }
+            await client.query("COMMIT");
+            return occurrence;
+        } catch (error) {
+            await client.query("ROLLBACK");
+            throw error;
+        } finally {
+            client.release();
+        }
     }
 
     async updateOccurrence(occurrence: Occurrence, history?: StatusHistory) {
@@ -279,12 +409,20 @@ export class PostgresRepository {
         return { rating };
     }
 
-    async dashboard() {
+    async dashboard(user: AuthUser) {
+        const filters = user.role === "GESTOR"
+            ? "WHERE EXISTS (SELECT 1 FROM companies c WHERE c.id = o.company_id AND c.manager_id = $1 AND c.active = TRUE)"
+            : "";
+        const values = user.role === "GESTOR" ? [user.id] : [];
         const [total, statuses, priorities, rating] = await Promise.all([
-            pool.query("SELECT COUNT(*)::int AS count FROM occurrences"),
-            pool.query("SELECT status, COUNT(*)::int AS count FROM occurrences GROUP BY status"),
-            pool.query("SELECT priority, COUNT(*)::int AS count FROM occurrences GROUP BY priority"),
-            pool.query("SELECT COALESCE(AVG(rating), 0)::float AS average FROM occurrence_ratings"),
+            pool.query(`SELECT COUNT(*)::int AS count FROM occurrences o ${filters}`, values),
+            pool.query(`SELECT o.status, COUNT(*)::int AS count FROM occurrences o ${filters} GROUP BY o.status`, values),
+            pool.query(`SELECT o.priority, COUNT(*)::int AS count FROM occurrences o ${filters} GROUP BY o.priority`, values),
+            pool.query(
+                `SELECT COALESCE(AVG(r.rating), 0)::float AS average
+                 FROM occurrence_ratings r INNER JOIN occurrences o ON o.id = r.occurrence_id ${filters}`,
+                values,
+            ),
         ]);
         const byStatus = Object.fromEntries(statuses.rows.map((row) => [row.status, row.count]));
         const byPriority = Object.fromEntries(priorities.rows.map((row) => [row.priority, row.count]));

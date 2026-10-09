@@ -11,6 +11,32 @@ CREATE TABLE IF NOT EXISTS users
     updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
 );
 
+CREATE TABLE IF NOT EXISTS companies
+(
+    id UUID PRIMARY KEY,
+    name VARCHAR(120) NOT NULL,
+    manager_id UUID NOT NULL REFERENCES users (id),
+    active BOOLEAN NOT NULL DEFAULT TRUE,
+    created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+    UNIQUE (id, manager_id)
+);
+
+CREATE INDEX IF NOT EXISTS ix_companies_active_name ON companies (name) WHERE active = TRUE;
+CREATE INDEX IF NOT EXISTS ix_companies_manager ON companies (manager_id);
+
+CREATE TABLE IF NOT EXISTS company_locations
+(
+    id UUID PRIMARY KEY,
+    company_id UUID NOT NULL REFERENCES companies (id),
+    name VARCHAR(80) NOT NULL,
+    address VARCHAR(200) NOT NULL,
+    active BOOLEAN NOT NULL DEFAULT TRUE,
+    created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+    UNIQUE (id, company_id)
+);
+
+CREATE INDEX IF NOT EXISTS ix_company_locations_company ON company_locations (company_id, name) WHERE active = TRUE;
+
 CREATE TABLE IF NOT EXISTS occurrences
 (
     id UUID PRIMARY KEY,
@@ -18,20 +44,25 @@ CREATE TABLE IF NOT EXISTS occurrences
     description TEXT NOT NULL,
     category VARCHAR(80) NOT NULL,
     location VARCHAR(240) NOT NULL,
-    image_url VARCHAR(2048),
+    company_id UUID REFERENCES companies (id),
+    location_id UUID,
+    image_url TEXT,
     priority VARCHAR(20) NOT NULL DEFAULT 'MEDIA' CHECK (priority IN ('BAIXA', 'MEDIA', 'ALTA', 'URGENTE')),
     status VARCHAR(20) NOT NULL DEFAULT 'ABERTA' CHECK (status IN ('ABERTA', 'EM_ANALISE', 'EM_ATENDIMENTO', 'RESOLVIDA', 'CANCELADA')),
     requester_id UUID NOT NULL REFERENCES users (id),
     assignee_id UUID REFERENCES users (id),
     solution TEXT,
     created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
-    updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+    updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+    CONSTRAINT ck_occurrence_company_location_pair CHECK ((company_id IS NULL) = (location_id IS NULL)),
+    CONSTRAINT fk_occurrence_company_location FOREIGN KEY (location_id, company_id) REFERENCES company_locations (id, company_id)
 );
 
 CREATE INDEX IF NOT EXISTS ix_occurrences_requester_id ON occurrences (requester_id);
 CREATE INDEX IF NOT EXISTS ix_occurrences_status_priority ON occurrences (status, priority);
 CREATE INDEX IF NOT EXISTS ix_occurrences_category ON occurrences (category);
 CREATE INDEX IF NOT EXISTS ix_occurrences_created_at ON occurrences (created_at DESC);
+CREATE INDEX IF NOT EXISTS ix_occurrences_company_location ON occurrences (company_id, location_id);
 
 CREATE TABLE IF NOT EXISTS occurrence_status_history
 (
@@ -96,8 +127,13 @@ SELECT
     assignee.name AS assignee_name,
     o.created_at,
     o.updated_at,
-    rating.rating
+    rating.rating,
+    company.name AS company_name,
+    location.name AS location_name,
+    location.address AS location_address
 FROM occurrences o
 INNER JOIN users requester ON requester.id = o.requester_id
 LEFT JOIN users assignee ON assignee.id = o.assignee_id
-LEFT JOIN occurrence_ratings rating ON rating.occurrence_id = o.id;
+LEFT JOIN occurrence_ratings rating ON rating.occurrence_id = o.id
+LEFT JOIN companies company ON company.id = o.company_id
+LEFT JOIN company_locations location ON location.id = o.location_id;

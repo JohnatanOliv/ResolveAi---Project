@@ -16,24 +16,57 @@ export class OccurrenceService {
 
     find(id: string) { return postgresRepository.findOccurrenceById(id); }
 
-    async create(userId: string, input: { title: string; description: string; category: string; location: string; imageUrl?: string; priority: Priority }) {
+    managerOwnsOccurrence(managerId: string, occurrenceId: string) {
+        return postgresRepository.managerOwnsOccurrence(managerId, occurrenceId);
+    }
+
+    async create(userId: string, input: { title: string; description: string; category: string; location: string; companyId?: string; locationId?: string; imageUrl?: string; priority: Priority }) {
         const now = new Date().toISOString();
-        const occurrence: Occurrence = { id: randomUUID(), ...input, status: "ABERTA", requesterId: userId, createdAt: now, updatedAt: now, comments: [], history: [] };
+        let location = input.location;
+        if (input.companyId || input.locationId) {
+            if (!input.companyId || !input.locationId) throw new Error("Selecione a empresa e o endereço");
+            const selectedLocation = await postgresRepository.findLocationForCompany(input.companyId, input.locationId);
+            if (!selectedLocation) throw new Error("O endereço selecionado não pertence a esta empresa");
+            location = `${selectedLocation.name} — ${selectedLocation.address}`;
+        }
+        const initialHistory: StatusHistory = {
+            id: randomUUID(),
+            previousStatus: null,
+            newStatus: "ABERTA",
+            note: "Ocorrência registrada",
+            changedBy: userId,
+            changedAt: now,
+        };
+        const occurrence: Occurrence = { id: randomUUID(), ...input, location, status: "ABERTA", requesterId: userId, createdAt: now, updatedAt: now, comments: [], history: [initialHistory] };
         return postgresRepository.saveOccurrence(occurrence);
     }
 
-    async update(id: string, managerId: string, input: { status?: Status; priority?: Priority; assigneeId?: string; solution?: string; note?: string }) {
+    listAssignableManagers(occurrenceId: string) {
+        return postgresRepository.listAssignableManagers(occurrenceId);
+    }
+
+    async update(id: string, managerId: string, input: { status?: Status; priority?: Priority; assigneeId?: string | null; solution?: string; note?: string }) {
         const occurrence = await this.find(id);
         if (!occurrence) return undefined;
+        if (input.assigneeId) {
+            const assignee = await postgresRepository.findUserById(input.assigneeId);
+            if (!assignee || (assignee.role !== "GESTOR" && assignee.role !== "ADMIN")) {
+                throw new Error("O responsável selecionado não é um gestor válido");
+            }
+            if (assignee.role === "GESTOR" && (!occurrence.companyId || !(await postgresRepository.managerOwnsCompany(assignee.id, occurrence.companyId)))) {
+                throw new Error("O responsável selecionado não pertence à empresa desta ocorrência");
+            }
+        }
         let history: StatusHistory | undefined;
-        if (input.status) {
+        if (input.status && input.status !== occurrence.status) {
             if (!validStatuses.includes(input.status) || !transitions[occurrence.status].includes(input.status)) throw new Error(`Transição inválida: ${occurrence.status} -> ${input.status}`);
-            history = { id: randomUUID(), previousStatus: occurrence.status, newStatus: input.status, note: input.note, changedBy: managerId, changedAt: new Date().toISOString() };
+            if (!input.note?.trim()) throw new Error("Informe uma observação para registrar a mudança de status");
+            history = { id: randomUUID(), previousStatus: occurrence.status, newStatus: input.status, note: input.note.trim(), changedBy: managerId, changedAt: new Date().toISOString() };
             occurrence.history.push(history);
             occurrence.status = input.status;
         }
         if (input.priority) occurrence.priority = input.priority;
-        if (input.assigneeId !== undefined) occurrence.assigneeId = input.assigneeId;
+        if (input.assigneeId !== undefined) occurrence.assigneeId = input.assigneeId || undefined;
         if (input.solution !== undefined) occurrence.solution = input.solution;
         occurrence.updatedAt = new Date().toISOString();
         return postgresRepository.updateOccurrence(occurrence, history);
@@ -49,8 +82,8 @@ export class OccurrenceService {
         return postgresRepository.rate(id, requesterId, rating);
     }
 
-    dashboard() {
-        return postgresRepository.dashboard();
+    dashboard(user: AuthUser) {
+        return postgresRepository.dashboard(user);
     }
 }
 

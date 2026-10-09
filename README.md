@@ -15,7 +15,8 @@ flowchart LR
     M --> S[Controllers e services]
     S --> R[PostgresRepository]
     R --> N[(Neon PostgreSQL)]
-    N --> U[users e ocorrências]
+    N --> U[users · companies · company_locations]
+    N --> O[ocorrências · comentários · histórico · avaliações]
     N --> Q[pedidos de acesso a gestor]
 ```
 
@@ -37,9 +38,29 @@ Nessa configuração, o Nginx serve o frontend e encaminha `/api` para a API pel
 
 - Cadastro e autenticação com senha protegida por bcrypt e sessão JWT.
 - Cadastro público sempre cria o papel `SOLICITANTE`.
-- Criação e acompanhamento de ocorrências, filtros, comentários, histórico, avaliações e indicadores.
+- Criação e acompanhamento de ocorrências, anexos de imagem, filtros por categoria/status/prioridade, comentários, histórico, avaliações e indicadores.
+- Gestores cadastram empresas com apenas um nome e adicionam os prédios/unidades com nome curto e endereço; solicitantes escolhem empresa e local ao abrir ocorrência.
+- Categorias comuns oferecem descrições pré-definidas, deixando texto adicional opcional e entrada livre somente para "Outro problema".
+- Gestores e administradores podem atribuir um gestor responsável, alterar prioridade/status e registrar solução com observação auditável.
 - Solicitantes podem pedir acesso de gestor; somente um usuário `ADMIN` pode aprovar ou recusar esses pedidos.
 - Aprovar um pedido promove a conta para `GESTOR`; o fluxo não oferece promoção pública para `ADMIN`.
+
+### Ciclo de vida da ocorrência
+
+```mermaid
+stateDiagram-v2
+    [*] --> ABERTA: criação
+    ABERTA --> EM_ANALISE: gestor analisa
+    ABERTA --> CANCELADA: cancelar
+    EM_ANALISE --> EM_ATENDIMENTO: gestor assume
+    EM_ANALISE --> CANCELADA: cancelar
+    EM_ATENDIMENTO --> RESOLVIDA: registrar solução
+    EM_ATENDIMENTO --> CANCELADA: cancelar
+    RESOLVIDA --> [*]
+    CANCELADA --> [*]
+```
+
+Cada criação e transição registra status anterior/novo, data, usuário responsável e observação no histórico.
 
 ## Tecnologias
 
@@ -59,7 +80,17 @@ Nessa configuração, o Nginx serve o frontend e encaminha `/api` para a API pel
 
 Para um banco Neon novo, execute `database/02_schema.postgres.sql` no SQL Editor do Neon.
 
-Para um banco existente que ainda não tem suporte ao fluxo de gestores, execute `database/03_manager_access_migration.sql`. A migração amplia os papéis permitidos e cria a tabela de solicitações. Não execute o schema SQL Server `database/01_schema.sql` no Neon.
+Para um banco Neon existente, aplique as migrations nesta ordem: `database/03_manager_access_migration.sql` (papéis e aprovação de gestores), `database/04_occurrence_image_text.sql` (imagem e preenchimento de histórico inicial) e `database/05_companies_locations.sql` (empresas, prédios e vínculo das ocorrências). Não execute o schema SQL Server `database/01_schema.sql` no Neon.
+
+O anexo atual aceita PNG, JPEG ou WebP de até 1 MB e é guardado como data URL no PostgreSQL. Esse caminho mantém o MVP autocontido; para volume maior, substitua por object storage e guarde no banco somente a URL do objeto. A migration `04_occurrence_image_text.sql` deve ser aplicada no Neon antes de publicar a nova versão.
+
+Cada empresa pertence ao gestor que a cadastrou. Solicitantes autenticados podem consultar nomes de empresas e endereços ativos; gestores só veem e atualizam ocorrências das próprias empresas e só adicionam endereços às próprias empresas, enquanto ADMIN tem visão e administração globais. Para cadastrar endereços, acesse **Empresas** no painel do gestor.
+
+Ocorrências criadas antes da migration `05_companies_locations.sql` ficam sem `company_id` e `location_id`: elas continuam visíveis ao solicitante e ao ADMIN, mas não aparecem na fila de gestores até o ADMIN vinculá-las manualmente a uma empresa/endereço.
+
+No cadastro de ocorrência, o solicitante seleciona uma empresa, depois um endereço dessa empresa e então escolhe um problema comum prefixado pela categoria. Texto livre fica opcional; só "Outro problema" pede título livre. O gestor cria empresas e endereços na navegação **Empresas**; cada empresa pertence a um gestor. Gestores veem ocorrências das próprias empresas; ADMIN tem visão global. Ocorrências anteriores à migration 05 ficam sem empresa e requerem classificação pelo ADMIN para entrar na fila de um gestor.
+
+O cabeçalho mostra nome e perfil, com saída no topo; no modo escuro o wordmark vira apenas o ícone da marca e o sino de notificação não é exibido.
 
 O primeiro administrador deve ser promovido manualmente no Neon, depois que a conta tiver sido cadastrada e o endereço confirmado. Substitua o e-mail pelo da conta correta:
 
