@@ -4,6 +4,9 @@ Sistema web de gestão de ocorrências com cadastro de solicitantes, acompanhame
 
 **Desenvolvido por:** Johnatan Oliveira Santos · **RM:** RM369240  
 **Repositório GitHub:** [github.com/JohnatanOliv/ResolveAi---Project](https://github.com/JohnatanOliv/ResolveAi---Project)
+**Aplicação publicada:** [https://resolveai-di8l.onrender.com](https://resolveai-di8l.onrender.com)
+
+> Na instância gratuita do Render, o serviço pode suspender após um período sem uso. A primeira abertura depois disso pode levar alguns instantes enquanto a aplicação inicia.
 
 ## Arquitetura
 
