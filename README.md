@@ -2,6 +2,9 @@
 
 Sistema web de gestão de ocorrências com cadastro de solicitantes, acompanhamento de status, comentários, avaliações e aprovação administrativa para acesso de gestores.
 
+**Desenvolvido por:** Johnatan Oliveira Santos · **RM:** RM369240  
+**Repositório GitHub:** [github.com/JohnatanOliv/ResolveAi---Project](https://github.com/JohnatanOliv/ResolveAi---Project)
+
 ## Arquitetura
 
 ### Aplicação publicada no Render
